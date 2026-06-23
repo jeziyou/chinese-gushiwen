@@ -2,45 +2,56 @@ import streamlit as st
 import json
 import random
 import os
-import re
 
 st.set_page_config(page_title="古诗词学习工具", page_icon="📜", layout="wide")
 
-@st.cache_data
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+@st.cache_data(show_spinner=False)
 def load_data():
     sentences = []
-    for file in os.listdir('/workspace/sentence'):
-        if file.endswith('.json'):
-            with open(f'/workspace/sentence/{file}', 'r', encoding='utf-8') as f:
-                for line in f:
-                    try:
-                        sentences.append(json.loads(line))
-                    except:
-                        pass
+    sentence_dir = os.path.join(BASE_DIR, 'sentence')
+    if os.path.exists(sentence_dir):
+        for file in os.listdir(sentence_dir):
+            if file.endswith('.json'):
+                with open(os.path.join(sentence_dir, file), 'r', encoding='utf-8') as f:
+                    for line in f:
+                        try:
+                            sentences.append(json.loads(line))
+                        except:
+                            pass
     
     poems = []
-    for file in os.listdir('/workspace/guwen'):
-        if file.endswith('.json'):
-            with open(f'/workspace/guwen/{file}', 'r', encoding='utf-8') as f:
-                for line in f:
-                    try:
-                        poems.append(json.loads(line))
-                    except:
-                        pass
+    guwen_dir = os.path.join(BASE_DIR, 'guwen')
+    if os.path.exists(guwen_dir):
+        for file in os.listdir(guwen_dir):
+            if file.endswith('.json'):
+                with open(os.path.join(guwen_dir, file), 'r', encoding='utf-8') as f:
+                    for line in f:
+                        try:
+                            poems.append(json.loads(line))
+                        except:
+                            pass
     
     writers = []
-    for file in os.listdir('/workspace/writer'):
-        if file.endswith('.json'):
-            with open(f'/workspace/writer/{file}', 'r', encoding='utf-8') as f:
-                for line in f:
-                    try:
-                        writers.append(json.loads(line))
-                    except:
-                        pass
+    writer_dir = os.path.join(BASE_DIR, 'writer')
+    if os.path.exists(writer_dir):
+        for file in os.listdir(writer_dir):
+            if file.endswith('.json'):
+                with open(os.path.join(writer_dir, file), 'r', encoding='utf-8') as f:
+                    for line in f:
+                        try:
+                            writers.append(json.loads(line))
+                        except:
+                            pass
     
     return sentences, poems, writers
 
-sentences, poems, writers = load_data()
+try:
+    sentences, poems, writers = load_data()
+except Exception as e:
+    sentences, poems, writers = [], [], []
+    st.error(f"数据加载失败: {e}")
 
 def get_dynasties():
     dynasties = set()
@@ -92,7 +103,9 @@ def search_writers(keyword):
     return results
 
 def random_poem():
-    return random.choice(poems)
+    if poems:
+        return random.choice(poems)
+    return {'title': '暂无数据', 'content': '请检查数据文件', 'writer': '', 'dynasty': ''}
 
 def generate_quiz(poem):
     content = poem.get('content', '')
@@ -133,6 +146,10 @@ def main():
     
     if 'favorites' not in st.session_state:
         st.session_state['favorites'] = []
+    
+    if not poems or not sentences or not writers:
+        st.warning("⚠️ 数据文件未找到，请确保 guwen、sentence、writer 目录存在且包含数据文件。")
+        return
     
     if choice == "诗词首页":
         st.title("📜 古诗词学习工具")
@@ -261,7 +278,7 @@ def main():
             st.subheader(f"{writer['name']} 的作品")
             writer_poems = [p for p in poems if p.get('writer') == writer['name']]
             for poem in writer_poems[:10]:
-                st.markdown(f"- [{poem.get('title', '')}]({poem.get('title', '')})")
+                st.markdown(f"- {poem.get('title', '')}")
     
     elif choice == "每日推荐":
         st.title("🎯 每日推荐")
@@ -310,15 +327,16 @@ def main():
         st.write(f"**{quiz['poem_title']}** - {quiz['poem_writer']}")
         st.markdown(f"```\n{quiz['question']}\n```")
         
+        user_answers = []
         for i, answer in enumerate(quiz['answers']):
             user_input = st.text_input(f"请输入第 {i+1} 个空的答案", key=f"answer_{i}")
-            st.session_state['user_answers'].append(user_input)
+            user_answers.append(user_input)
         
         if st.button("提交答案"):
             st.session_state['submitted'] = True
             
             correct = True
-            for i, (user_ans, correct_ans) in enumerate(zip(st.session_state['user_answers'], quiz['answers'])):
+            for i, (user_ans, correct_ans) in enumerate(zip(user_answers, quiz['answers'])):
                 if user_ans != correct_ans:
                     correct = False
                     st.error(f"第 {i+1} 个空答案错误！正确答案是：{correct_ans}")
